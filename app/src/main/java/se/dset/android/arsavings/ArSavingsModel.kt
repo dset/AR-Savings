@@ -2,29 +2,28 @@ package se.dset.android.arsavings
 
 import android.content.Context
 import android.graphics.BitmapFactory
+import android.net.Uri
 import android.widget.TextView
 import com.google.ar.core.HitResult
 import com.google.ar.sceneform.AnchorNode
 import com.google.ar.sceneform.Node
+import com.google.ar.sceneform.math.Quaternion
 import com.google.ar.sceneform.math.Vector3
 import com.google.ar.sceneform.rendering.*
 import io.reactivex.rxjava3.android.schedulers.AndroidSchedulers
 import io.reactivex.rxjava3.core.Observable
+import io.reactivex.rxjava3.functions.BiFunction
 import io.reactivex.rxjava3.functions.Function3
 import io.reactivex.rxjava3.functions.Function4
-import io.reactivex.rxjava3.functions.Function5
 import io.reactivex.rxjava3.functions.Function6
 import io.reactivex.rxjava3.schedulers.Schedulers
 import io.reactivex.rxjava3.subjects.BehaviorSubject
-import java.text.DecimalFormat
-import kotlin.math.ceil
-import kotlin.math.max
-import kotlin.math.pow
-import kotlin.math.roundToInt
+import kotlin.math.*
 
 class ArSavingsModel(
     private val context: Context
 ) {
+    private val visualizationTypeSubject = BehaviorSubject.createDefault(VisualizationType.CASH)
     private val monthlySavingsSubject = BehaviorSubject.createDefault(0)
     private val startAmountSubject = BehaviorSubject.createDefault(0)
     private val durationSubject = BehaviorSubject.createDefault(0)
@@ -95,18 +94,127 @@ class ArSavingsModel(
             .subscribeOn(Schedulers.io())
     }
 
-    fun observeModelNode(): Observable<Node> {
+    private fun observeTextNode(): Observable<Node> {
+        return Observable.combineLatest(
+            observeTextRenderable(),
+            observeTotalSavings(),
+            BiFunction { t1: ViewRenderable, t2: Int -> Pair(t1, t2) }
+        )
+            .observeOn(AndroidSchedulers.mainThread())
+            .map { (renderable, savings) ->
+                (renderable.view as TextView).text = ArSavingsFragment.formatCurrency(savings)
+                Node().apply {
+                    this.renderable = renderable
+                }
+            }
+    }
+
+    private fun observeTransparentMaterial(): Observable<Material> {
+        return Observable.fromFuture(MaterialFactory.makeTransparentWithColor(context, Color(1f, 1f, 1f, 0f)))
+            .subscribeOn(Schedulers.io())
+    }
+
+    private fun observeAssetModel(file: String): Observable<ModelRenderable> {
+        return Observable.fromFuture(
+            ModelRenderable.Builder()
+                .setSource(context, Uri.parse(file))
+                .build()
+        )
+            .subscribeOn(Schedulers.io())
+    }
+
+    private fun observeAssetMaterials(file: String): Observable<List<Material>> {
+        return Observable.fromFuture(
+            ModelRenderable.Builder()
+                .setSource(context, Uri.parse(file))
+                .build()
+        )
+            .map { renderable ->
+                (0 until renderable.submeshCount).map { i ->
+                    renderable.getMaterial(i)
+                }
+            }
+            .subscribeOn(Schedulers.io())
+    }
+
+    private fun observeAssetModelNode(file: String, price: Float): Observable<Node> {
+        return Observable.combineLatest(
+            observeAssetModel(file),
+            observeAssetMaterials(file),
+            observeTransparentMaterial(),
+            observeTotalSavings(),
+            Function4 {
+                    t1: ModelRenderable, t2: List<Material>, t3: Material, t4: Int -> AssetModelData(t1, t2, t3, t4)
+            }
+        )
+            .observeOn(AndroidSchedulers.mainThread())
+            .map { (renderable, materials, transparent, savings) ->
+                val numMeshes = min(renderable.submeshCount, (savings / price * renderable.submeshCount).toInt())
+                repeat(renderable.submeshCount) { i ->
+                    if (i < numMeshes) {
+                        renderable.setMaterial(i, materials[i])
+                    } else {
+                        renderable.setMaterial(i, transparent)
+                    }
+                }
+
+                Node().apply {
+                    this.renderable = renderable
+                }
+            }
+    }
+
+    private fun observeCarModelNode(): Observable<Node> {
+        return Observable.combineLatest(
+            observeAnchorNode(),
+            observeAssetModelNode("car.sfb", 300_000f),
+            observeTextNode(),
+            Function3 { t1: AnchorNode, t2: Node, t3: Node -> Triple(t1, t2, t3) }
+        )
+            .map { (anchorNode, node, textNode) ->
+                node.localScale = Vector3(0.35f, 0.35f, 0.35f)
+                node.localRotation = Quaternion.axisAngle(Vector3(1f, 0f, 0f), -90f)
+                node.localPosition = Vector3(0f, 0f, 0.6f)
+                textNode.localPosition = Vector3(0f, 0.5f, 0f)
+
+                anchorNode.clear()
+                anchorNode.addChild(node)
+                anchorNode.addChild(textNode)
+                anchorNode
+            }
+    }
+
+    private fun observeHomeModelNode(): Observable<Node> {
+        return Observable.combineLatest(
+            observeAnchorNode(),
+            observeAssetModelNode("house.sfb", 1_000_000f),
+            observeTextNode(),
+            Function3 { t1: AnchorNode, t2: Node, t3: Node -> Triple(t1, t2, t3) }
+        )
+            .map { (anchorNode, node, textNode) ->
+                node.localScale = Vector3(0.5f, 0.5f, 0.5f)
+                node.localPosition = Vector3(0f, 0f, -0.3f)
+                textNode.localPosition = Vector3(0f, 0.75f, 0f)
+
+                anchorNode.clear()
+                anchorNode.addChild(node)
+                anchorNode.addChild(textNode)
+                anchorNode
+            }
+    }
+
+    private fun observeCashModelNode(): Observable<Node> {
         return Observable.combineLatest(
             observeAnchorNode(),
             observeTotalSavings(),
             observeBaseMaterial(),
             observeFaceMaterial(),
             observeCoinBaseMaterial(),
-            observeTextRenderable(),
-            Function6 { p1: AnchorNode, p2: Int, p3: Material, p4: Material, p5: Material, p6: ViewRenderable -> ModelData(p1, p2, p3, p4, p5, p6) }
+            observeTextNode(),
+            Function6 { p1: AnchorNode, p2: Int, p3: Material, p4: Material, p5: Material, p6: Node -> CashModelData(p1, p2, p3, p4, p5, p6) }
         )
             .observeOn(AndroidSchedulers.mainThread())
-            .map { (anchorNode, totalSavings, baseMaterial, faceMaterial, coinBaseMaterial, textRenderable) ->
+            .map { (anchorNode, totalSavings, baseMaterial, faceMaterial, coinBaseMaterial, textNode) ->
                 val numKrona = totalSavings - (totalSavings / 100) * 100
                 val savings = totalSavings - numKrona
                 val totalHeight = savings / 10_000f * 0.0125f
@@ -159,14 +267,25 @@ class ArSavingsModel(
                 coinBaseNode.localPosition = Vector3(0f, coinHeight / 2f, maxCoordinateY + BILL_HEIGHT)
                 anchorNode.addChild(coinBaseNode)
 
-                (textRenderable.view as TextView).text = ArSavingsFragment.formatCurrency(totalSavings)
-                val textNode = Node()
-                textNode.renderable = textRenderable
                 textNode.localPosition = Vector3(0f, (if (numPiles == 1) totalHeight else MAX_PILE_HEIGHT) + TEXT_PADDING, 0f)
                 anchorNode.addChild(textNode)
 
                 anchorNode
             }
+    }
+
+    fun observeModelNode(): Observable<Node> {
+        return visualizationTypeSubject.switchMap {
+            when (it) {
+                VisualizationType.CASH -> observeCashModelNode()
+                VisualizationType.CAR -> observeCarModelNode()
+                VisualizationType.HOME -> observeHomeModelNode()
+            }
+        }
+    }
+
+    fun onVisualizationTypeChanged(type: VisualizationType) {
+        visualizationTypeSubject.onNext(type)
     }
 
     fun onMonthlySavingsChanged(value: Int) {
@@ -199,11 +318,18 @@ class ArSavingsModel(
     }
 }
 
-private data class ModelData(
+private data class CashModelData(
     val anchorNode: AnchorNode,
     val savings: Int,
     val baseMaterial: Material,
     val faceMaterial: Material,
     val coinBaseMaterial: Material,
-    val textRenderable: ViewRenderable
+    val textNode: Node
+)
+
+private data class AssetModelData(
+    val renderable: ModelRenderable,
+    val materials: List<Material>,
+    val transparent: Material,
+    val savings: Int
 )

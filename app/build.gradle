@@ -3,6 +3,7 @@ apply plugin: 'com.android.application'
 apply plugin: 'kotlin-android'
 
 apply plugin: 'kotlin-android-extensions'
+apply plugin: 'com.google.ar.sceneform.plugin'
 
 android {
     compileSdkVersion 28
@@ -40,3 +41,14 @@ dependencies {
     implementation "io.reactivex.rxjava3:rxjava:3.0.0-RC6"
     implementation 'io.reactivex.rxjava3:rxandroid:3.0.0-SNAPSHOT'
 }
+
+
+sceneform.asset('../../../Desktop/houses/tej7ntrwa7sw-Cyprys_All_Format/Cyprys_House_obj/Cyprys_House.obj',
+        'default',
+        '../../../Desktop/houses/tej7ntrwa7sw-Cyprys_All_Format/Cyprys_House_obj/Cyprys_House.sfa',
+        'src/main/assets/house')
+
+sceneform.asset('../../../Desktop/cars/DODGE_CHALLENGER_383_MAGNUM/CHALLENGER71.obj',
+        'default',
+        '../../../Desktop/cars/DODGE_CHALLENGER_383_MAGNUM/CHALLENGER71.sfa',
+        'src/main/assets/car')

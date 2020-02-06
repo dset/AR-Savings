@@ -37,6 +37,10 @@ class ArSavingsPresenter(
         disposables.clear()
     }
 
+    fun onVisualizationTypeChanged(type: VisualizationType) {
+        model.onVisualizationTypeChanged(type)
+    }
+
     fun onMonthlySavingsChanged(value: Int) {
         model.onMonthlySavingsChanged(value)
     }

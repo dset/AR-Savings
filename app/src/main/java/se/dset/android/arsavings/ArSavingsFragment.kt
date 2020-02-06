@@ -33,6 +33,10 @@ class ArSavingsFragment : ArFragment(), BaseArFragment.OnTapArPlaneListener {
         super.onViewCreated(view, savedInstanceState)
         val layout = layoutInflater.inflate(R.layout.fragment_ar_savings, view as ViewGroup, true)
 
+        layout.cashButton.setOnClickListener { presenter.onVisualizationTypeChanged(VisualizationType.CASH) }
+        layout.carButton.setOnClickListener { presenter.onVisualizationTypeChanged(VisualizationType.CAR) }
+        layout.homeButton.setOnClickListener { presenter.onVisualizationTypeChanged(VisualizationType.HOME) }
+
         val onMonthlySavingsChange = { progress: Int -> presenter.onMonthlySavingsChanged(progress * 100) }
         layout.monthlySavingsSlider.setOnSeekBarChangeListener(OnSeekBarChangeListenerAdapter(onMonthlySavingsChange))
         onMonthlySavingsChange(layout.monthlySavingsSlider.progress)
