@@ -1,0 +1,8 @@
+<resources>
+    <string name="app_name">ArSavings</string>
+
+    <string name="label_monthly_savings">Månadssparande</string>
+    <string name="label_start_amount">Startbelopp</string>
+    <string name="label_duration">Spartid</string>
+    <string name="value_years">%1$d år</string>
+</resources>
