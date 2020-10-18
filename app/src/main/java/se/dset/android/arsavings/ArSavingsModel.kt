@@ -18,6 +18,7 @@ import io.reactivex.rxjava3.functions.Function4
 import io.reactivex.rxjava3.functions.Function6
 import io.reactivex.rxjava3.schedulers.Schedulers
 import io.reactivex.rxjava3.subjects.BehaviorSubject
+import java.util.*
 import kotlin.math.*
 
 class ArSavingsModel(
@@ -137,7 +138,7 @@ class ArSavingsModel(
             .subscribeOn(Schedulers.io())
     }
 
-    private fun observeAssetModelNode(file: String, price: Float): Observable<Node> {
+    private fun observeAssetModelNode(file: String, price: Float, seed: Long): Observable<Node> {
         return Observable.combineLatest(
             observeAssetModel(file),
             observeAssetMaterials(file),
@@ -150,11 +151,11 @@ class ArSavingsModel(
             .observeOn(AndroidSchedulers.mainThread())
             .map { (renderable, materials, transparent, savings) ->
                 val numMeshes = min(renderable.submeshCount, (savings / price * renderable.submeshCount).toInt())
-                repeat(renderable.submeshCount) { i ->
+                (0 until renderable.submeshCount).shuffled(Random(seed)).forEachIndexed { i, submesh ->
                     if (i < numMeshes) {
-                        renderable.setMaterial(i, materials[i])
+                        renderable.setMaterial(submesh, materials[submesh])
                     } else {
-                        renderable.setMaterial(i, transparent)
+                        renderable.setMaterial(submesh, transparent)
                     }
                 }
 
@@ -167,7 +168,7 @@ class ArSavingsModel(
     private fun observeCarModelNode(): Observable<Node> {
         return Observable.combineLatest(
             observeAnchorNode(),
-            observeAssetModelNode("car.sfb", 300_000f),
+            observeAssetModelNode("car.sfb", 300_000f, 1L),
             observeTextNode(),
             Function3 { t1: AnchorNode, t2: Node, t3: Node -> Triple(t1, t2, t3) }
         )
@@ -187,7 +188,7 @@ class ArSavingsModel(
     private fun observeHomeModelNode(): Observable<Node> {
         return Observable.combineLatest(
             observeAnchorNode(),
-            observeAssetModelNode("house.sfb", 1_000_000f),
+            observeAssetModelNode("house.sfb", 1_000_000f, 1L),
             observeTextNode(),
             Function3 { t1: AnchorNode, t2: Node, t3: Node -> Triple(t1, t2, t3) }
         )
